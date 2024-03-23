@@ -178,7 +178,7 @@ public final class CollisionUtils {
     public static Shape parseBlockShape(String collision, String occlusion, Registry.BlockEntry blockEntry) {
         return ShapeImpl.parseBlockFromRegistry(collision, occlusion, blockEntry);
     }
-    
+
     /**
      * Simulate the entity's collision physics as if the world had no blocks
      *

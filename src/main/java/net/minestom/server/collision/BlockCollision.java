@@ -469,4 +469,67 @@ final class BlockCollision {
 
         return facePoints;
     }
+
+    private static PhysicsResult experimentRayPhysics(@NotNull BoundingBox boundingBox,
+                                                      @NotNull Vec velocity, @NotNull Pos position, boolean onGround,
+                                                      @NotNull Block.Getter getter,
+                                                      boolean singleCollision) {
+        SweepResult finalResult = new SweepResult(1 - Vec.EPSILON, 0, 0, 0, null, 0, 0, 0);
+        final Vec[] allFaces = calculateFaces(velocity, boundingBox);
+        for (var face : allFaces) {
+            BlockIterator iterator = new BlockIterator(Vec.fromPoint(face.add(position)), velocity, 0, velocity.length());
+            while (iterator.hasNext()) {
+                Point p = iterator.next();
+                final Block block = getter.getBlock(p, Block.Getter.Condition.TYPE);
+                Shape shape = block.registry().collisionShape();
+                final boolean currentShort = shape.relativeEnd().y() < 0.5;
+                //System.out.println("check " + p + " " + block.name() + " " + shape.relativeEnd());
+                if (currentShort) {
+                    // Must check for fence block below
+                    final Point belowPoint = p.sub(0, 1, 0);
+                    final Block belowBlock = getter.getBlock(belowPoint, Block.Getter.Condition.TYPE);
+                    final Shape belowShape = belowBlock.registry().collisionShape();
+                    //System.out.println("below " + belowBlock.name() + " " + belowShape.relativeEnd());
+                    if (belowShape.relativeEnd().y() > 1) {
+                        p = belowPoint;
+                        shape = belowShape;
+                    }
+                }
+                final boolean collide = shape.intersectBoxSwept(position, velocity, p, boundingBox, finalResult);
+                final boolean collisionX = finalResult.normalX != 0;
+                final boolean collisionY = finalResult.normalY != 0;
+                final boolean collisionZ = finalResult.normalZ != 0;
+                final boolean hasCollided = collisionX || collisionY || collisionZ;
+                if (!hasCollided) continue;
+                double deltaX = finalResult.res * velocity.x();
+                double deltaY = finalResult.res * velocity.y();
+                double deltaZ = finalResult.res * velocity.z();
+                if (Math.abs(deltaX) < Vec.EPSILON) deltaX = 0;
+                if (Math.abs(deltaY) < Vec.EPSILON) deltaY = 0;
+                if (Math.abs(deltaZ) < Vec.EPSILON) deltaZ = 0;
+                final Pos newPosition = position.add(deltaX, deltaY, deltaZ);
+                final double remainingX = collisionX ? 0 : velocity.x() - deltaX;
+                final double remainingY = collisionY ? 0 : velocity.y() - deltaY;
+                final double remainingZ = collisionZ ? 0 : velocity.z() - deltaZ;
+                final Vec newVelocity = new Vec(remainingX, remainingY, remainingZ);
+                if (newVelocity.isZero() || singleCollision) {
+                    // Collided on all required axis
+                    return new PhysicsResult(newPosition, newVelocity,
+                            collisionY || onGround, false, false, false, Vec.ZERO,
+                            new Point[3], new Shape[3], false,
+                            SweepResult.NO_COLLISION);
+                } else {
+                    // Additional axis to check
+                    return experimentRayPhysics(boundingBox, newVelocity, newPosition,
+                            collisionY || onGround, getter, singleCollision);
+                }
+            }
+        }
+        // No collision
+        final Pos newPosition = position.add(velocity);
+        return new PhysicsResult(newPosition, velocity,
+                onGround, false, false, false, Vec.ZERO,
+                new Point[3], new Shape[3], false,
+                SweepResult.NO_COLLISION);
+    }
 }
