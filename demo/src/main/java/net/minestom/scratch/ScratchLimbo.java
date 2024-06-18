@@ -6,6 +6,7 @@ import net.minestom.scratch.tools.ScratchBlockTools.BlockHolder;
 import net.minestom.scratch.tools.ScratchFeature;
 import net.minestom.scratch.tools.ScratchNetworkTools.NetworkContext;
 import net.minestom.scratch.tools.ScratchRegistryTools;
+import net.minestom.server.MinecraftServer;
 import net.minestom.server.coordinate.Pos;
 import net.minestom.server.coordinate.Vec;
 import net.minestom.server.entity.GameMode;
@@ -166,8 +167,8 @@ public final class ScratchLimbo {
                     this.networkContext.write(new ResponsePacket("""
                             {
                                 "version": {
-                                    "name": "1.20.4",
-                                    "protocol": 765
+                                    "name": "%s",
+                                    "protocol": %s
                                 },
                                 "players": {
                                     "max": 0,
@@ -179,7 +180,7 @@ public final class ScratchLimbo {
                                 "enforcesSecureChat": false,
                                 "previewsChat": false
                             }
-                            """));
+                            """.formatted(MinecraftServer.VERSION_NAME, MinecraftServer.PROTOCOL_VERSION)));
                 }
                 case ClientPingRequestPacket pingRequestPacket -> {
                     this.networkContext.write(new PingResponsePacket(pingRequestPacket.number()));

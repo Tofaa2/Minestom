@@ -8,6 +8,7 @@ import net.minestom.scratch.tools.ScratchInventoryUtils;
 import net.minestom.scratch.tools.ScratchNetworkTools.NetworkContext;
 import net.minestom.scratch.tools.ScratchRegistryTools;
 import net.minestom.scratch.tools.ScratchVelocityTools;
+import net.minestom.server.MinecraftServer;
 import net.minestom.server.ServerFlag;
 import net.minestom.server.collision.Aerodynamics;
 import net.minestom.server.collision.PhysicsResult;
@@ -247,8 +248,8 @@ public final class Scratch {
                     this.networkContext.write(new ResponsePacket("""
                             {
                                 "version": {
-                                    "name": "1.20.4",
-                                    "protocol": 765
+                                    "name": "%s",
+                                    "protocol": %s
                                 },
                                 "players": {
                                     "max": 100,
@@ -260,7 +261,7 @@ public final class Scratch {
                                 "enforcesSecureChat": false,
                                 "previewsChat": false
                             }
-                            """));
+                            """.formatted(MinecraftServer.VERSION_NAME, MinecraftServer.PROTOCOL_VERSION)));
                 }
                 case ClientPingRequestPacket pingRequestPacket -> {
                     this.networkContext.write(new PingResponsePacket(pingRequestPacket.number()));
