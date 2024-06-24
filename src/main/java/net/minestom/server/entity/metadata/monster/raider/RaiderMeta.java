@@ -1,6 +1,7 @@
 package net.minestom.server.entity.metadata.monster.raider;
 
 import net.minestom.server.entity.Entity;
+import net.minestom.server.entity.MetadataHolder;
 import net.minestom.server.entity.Metadata;
 import net.minestom.server.entity.MetadataHolder;
 import net.minestom.server.entity.metadata.monster.MonsterMeta;

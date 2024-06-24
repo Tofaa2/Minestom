@@ -4,6 +4,7 @@ import it.unimi.dsi.fastutil.ints.Int2ObjectMaps;
 import net.kyori.adventure.nbt.CompoundBinaryTag;
 import net.minestom.server.MinecraftServer;
 import net.minestom.server.coordinate.BlockVec;
+import net.minestom.server.coordinate.CoordConversionUtils;
 import net.minestom.server.coordinate.Point;
 import net.minestom.server.coordinate.Vec;
 import net.minestom.server.entity.Entity;
@@ -25,7 +26,7 @@ import net.minestom.server.network.packet.server.play.EffectPacket;
 import net.minestom.server.network.packet.server.play.UnloadChunkPacket;
 import net.minestom.server.registry.DynamicRegistry;
 import net.minestom.server.utils.NamespaceID;
-import net.minestom.server.utils.PacketUtils;
+import net.minestom.server.utils.PacketSendingUtils;
 import net.minestom.server.utils.async.AsyncUtils;
 import net.minestom.server.utils.block.BlockUtils;
 import net.minestom.server.utils.chunk.ChunkCache;
@@ -48,7 +49,10 @@ import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Supplier;
 
-import static net.minestom.server.utils.chunk.ChunkUtils.*;
+import static net.minestom.server.coordinate.CoordConversionUtils.chunkIndex;
+import static net.minestom.server.coordinate.CoordConversionUtils.globalToChunk;
+import static net.minestom.server.utils.chunk.ChunkUtils.getChunkIndex;
+import static net.minestom.server.utils.chunk.ChunkUtils.isLoaded;
 
 /**
  * InstanceContainer is an instance that contains chunks in contrary to SharedInstance.
@@ -123,7 +127,7 @@ public class InstanceContainer extends Instance {
         if (chunk == null) {
             Check.stateCondition(!hasEnabledAutoChunkLoad(),
                     "Tried to set a block to an unloaded chunk with auto chunk load disabled");
-            chunk = loadChunk(getChunkCoordinate(x), getChunkCoordinate(z)).join();
+            chunk = loadChunk(globalToChunk(x), globalToChunk(z)).join();
         }
         if (isLoaded(chunk)) UNSAFE_setBlock(chunk, x, y, z, block, null, null, doBlockUpdates, 0);
     }
@@ -239,7 +243,7 @@ public class InstanceContainer extends Instance {
             UNSAFE_setBlock(chunk, x, y, z, resultBlock, null,
                     new BlockHandler.PlayerDestroy(block, this, blockPosition, player), doBlockUpdates, 0);
             // Send the block break effect packet
-            PacketUtils.sendGroupedPacket(chunk.getViewers(),
+            PacketSendingUtils.sendGroupedPacket(chunk.getViewers(),
                     new EffectPacket(2001 /*Block break + block break sound*/, blockPosition, block.stateId(), false),
                     // Prevent the block breaker to play the particles and sound two times
                     (viewer) -> !viewer.equals(player));
@@ -267,7 +271,7 @@ public class InstanceContainer extends Instance {
         // Remove all entities in chunk
         getEntityTracker().chunkEntities(chunkX, chunkZ, EntityTracker.Target.ENTITIES).forEach(Entity::remove);
         // Clear cache
-        this.chunks.remove(getChunkIndex(chunkX, chunkZ));
+        this.chunks.remove(chunkIndex(chunkX, chunkZ));
         chunk.unload();
         chunkLoader.unloadChunk(chunk);
         var dispatcher = MinecraftServer.process().dispatcher();
@@ -276,7 +280,7 @@ public class InstanceContainer extends Instance {
 
     @Override
     public Chunk getChunk(int chunkX, int chunkZ) {
-        return chunks.get(getChunkIndex(chunkX, chunkZ));
+        return chunks.get(chunkIndex(chunkX, chunkZ));
     }
 
     @Override
@@ -296,7 +300,7 @@ public class InstanceContainer extends Instance {
 
     protected @NotNull CompletableFuture<@NotNull Chunk> retrieveChunk(int chunkX, int chunkZ) {
         CompletableFuture<Chunk> completableFuture = new CompletableFuture<>();
-        final long index = getChunkIndex(chunkX, chunkZ);
+        final long index = chunkIndex(chunkX, chunkZ);
         final CompletableFuture<Chunk> prev = loadingChunks.putIfAbsent(index, completableFuture);
         if (prev != null) return prev;
         final IChunkLoader loader = chunkLoader;
@@ -370,7 +374,7 @@ public class InstanceContainer extends Instance {
                                     forkChunk.invalidate();
                                     forkChunk.sendChunk();
                                 } else {
-                                    final long index = ChunkUtils.getChunkIndex(start);
+                                    final long index = chunkIndex(start);
                                     this.generationForks.compute(index, (i, sectionModifiers) -> {
                                         if (sectionModifiers == null) sectionModifiers = new ArrayList<>();
                                         sectionModifiers.add(sectionModifier);
@@ -427,9 +431,9 @@ public class InstanceContainer extends Instance {
             Int2ObjectMaps.fastForEach(cache, blockEntry -> {
                 final int index = blockEntry.getIntKey();
                 final Block block = blockEntry.getValue();
-                final int x = ChunkUtils.blockIndexToChunkPositionX(index);
-                final int y = ChunkUtils.blockIndexToChunkPositionY(index) + height;
-                final int z = ChunkUtils.blockIndexToChunkPositionZ(index);
+                final int x = CoordConversionUtils.blockIndexToChunkPositionX(index);
+                final int y = CoordConversionUtils.blockIndexToChunkPositionY(index) + height;
+                final int z = CoordConversionUtils.blockIndexToChunkPositionZ(index);
                 chunk.setBlock(x, y, z, block);
             });
         }

@@ -1,12 +1,12 @@
 package net.minestom.server.instance;
 
+import net.minestom.server.coordinate.CoordConversionUtils;
 import net.minestom.server.coordinate.Point;
 import net.minestom.server.coordinate.Vec;
 import net.minestom.server.instance.block.Block;
 import net.minestom.server.instance.generator.GenerationUnit;
 import net.minestom.server.instance.generator.Generator;
 import net.minestom.server.utils.MathUtils;
-import net.minestom.server.utils.chunk.ChunkUtils;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
@@ -19,9 +19,9 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Stream;
 
+import static net.minestom.server.coordinate.CoordConversionUtils.ceilSection;
+import static net.minestom.server.coordinate.CoordConversionUtils.floorSection;
 import static net.minestom.server.instance.GeneratorImpl.unit;
-import static net.minestom.server.utils.chunk.ChunkUtils.ceilSection;
-import static net.minestom.server.utils.chunk.ChunkUtils.floorSection;
 import static org.junit.jupiter.api.Assertions.*;
 
 public class GeneratorTest {
@@ -170,8 +170,8 @@ public class GeneratorTest {
             Set<Point> points = new HashSet<>();
             modifier.setAll((x, y, z) -> {
                 assertTrue(points.add(new Vec(x, y, z)), "Duplicate point: " + x + ", " + y + ", " + z);
-                assertEquals(chunkX, ChunkUtils.getChunkCoordinate(x));
-                assertEquals(chunkZ, ChunkUtils.getChunkCoordinate(z));
+                assertEquals(chunkX, CoordConversionUtils.globalToChunk(x));
+                assertEquals(chunkZ, CoordConversionUtils.globalToChunk(z));
                 return Block.STONE;
             });
             assertEquals(16 * 16 * 16 * sectionCount, points.size());
