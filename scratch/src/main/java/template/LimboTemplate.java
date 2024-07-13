@@ -5,7 +5,7 @@ import net.kyori.adventure.text.format.TextColor;
 import net.minestom.scratch.listener.ScratchFeature;
 import net.minestom.scratch.network.ScratchNetworkTools.NetworkContext;
 import net.minestom.scratch.registry.ScratchRegistryTools;
-import net.minestom.scratch.world.PaletteWorld;
+import net.minestom.scratch.world.ImmutableChunkRepeatWorld;
 import net.minestom.server.MinecraftServer;
 import net.minestom.server.coordinate.ChunkRangeUtils;
 import net.minestom.server.coordinate.Pos;
@@ -25,6 +25,7 @@ import net.minestom.server.network.packet.server.login.LoginSuccessPacket;
 import net.minestom.server.network.packet.server.play.*;
 import net.minestom.server.network.packet.server.play.data.WorldPos;
 import net.minestom.server.network.packet.server.status.ResponsePacket;
+import net.minestom.server.registry.DynamicRegistry;
 import net.minestom.server.world.DimensionType;
 
 import java.io.IOException;
@@ -201,7 +202,7 @@ public final class LimboTemplate {
         }
 
         private final int id = 1;
-        private final PaletteWorld blockHolder = new PaletteWorld(ScratchRegistryTools.DIMENSION_REGISTRY, DimensionType.OVERWORLD);
+        private final ImmutableChunkRepeatWorld world = new ImmutableChunkRepeatWorld(ScratchRegistryTools.DIMENSION_REGISTRY.get(DimensionType.OVERWORLD));
         Pos position;
         Pos oldPosition;
 
@@ -254,7 +255,7 @@ public final class LimboTemplate {
 
             @Override
             public ChunkDataPacket chunkPacket(int chunkX, int chunkZ) {
-                return blockHolder.generatePacket(chunkX, chunkZ);
+                return world.chunkPacket(chunkX, chunkZ);
             }
 
             @Override
@@ -267,15 +268,18 @@ public final class LimboTemplate {
             final Pos position = new Pos(0, 55, 0);
             this.position = position;
             this.oldPosition = position;
-            final DimensionType dimensionType = blockHolder.dimensionType();
+
+            final DimensionType dimension = world.dimensionType();
+            final DynamicRegistry.Key<DimensionType> dimensionKey = ScratchRegistryTools.DIMENSION_REGISTRY.getKey(dimension);
+            final int dimensionId = ScratchRegistryTools.DIMENSION_REGISTRY.getId(dimensionKey);
 
             this.networkContext.write(new JoinGamePacket(
                     id, false, List.of(), 0,
                     VIEW_DISTANCE, VIEW_DISTANCE,
                     false, true, false,
-                    0, "world",
+                    dimensionId, dimensionKey.name(),
                     0, GameMode.CREATIVE, null, false, true,
-                    new WorldPos("dimension", Vec.ZERO), 0, false));
+                    new WorldPos(dimensionKey.name(), Vec.ZERO), 0, false));
             this.networkContext.write(new SpawnPositionPacket(position, 0));
             this.networkContext.write(new PlayerPositionAndLookPacket(position, (byte) 0, 0));
             this.networkContext.write(new PlayerInfoUpdatePacket(EnumSet.of(PlayerInfoUpdatePacket.Action.ADD_PLAYER, PlayerInfoUpdatePacket.Action.UPDATE_LISTED),
@@ -288,7 +292,7 @@ public final class LimboTemplate {
             this.networkContext.write(new UpdateViewPositionPacket(position.chunkX(), position.chunkZ()));
 
             ChunkRangeUtils.forChunksInRange(position.chunkX(), position.chunkZ(), VIEW_DISTANCE,
-                    (x, z) -> networkContext.write(blockHolder.generatePacket(x, z)));
+                    (x, z) -> networkContext.write(world.chunkPacket(x, z)));
 
             this.networkContext.write(new ChangeGameStatePacket(ChangeGameStatePacket.Reason.LEVEL_CHUNKS_LOAD_START, 0f));
         }

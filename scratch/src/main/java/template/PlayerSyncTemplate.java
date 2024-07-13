@@ -51,7 +51,6 @@ import java.util.*;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicReference;
 
 import static net.minestom.scratch.network.ScratchNetworkTools.NetworkContext;
 
@@ -202,8 +201,7 @@ public final class PlayerSyncTemplate {
         final ConcurrentLinkedQueue<ClientPacket> packetQueue = new ConcurrentLinkedQueue<>();
         volatile boolean online = true;
 
-        final AtomicReference<String> nameRef = new AtomicReference<>();
-        final AtomicReference<UUID> uuidRef = new AtomicReference<>();
+        PlayerInfo playerInfo;
 
         Connection(SocketChannel client) {
             this.client = client;
@@ -235,7 +233,7 @@ public final class PlayerSyncTemplate {
 
         void handleAsyncPacket(ClientPacket packet) {
             if (packet instanceof ClientFinishConfigurationPacket) {
-                waitingPlayers.offer(new PlayerInfo(this, nameRef.get(), uuidRef.get()));
+                waitingPlayers.offer(playerInfo);
                 return;
             }
             if (networkContext.state() == ConnectionState.PLAY) {
@@ -266,8 +264,7 @@ public final class PlayerSyncTemplate {
                     this.networkContext.write(new PingResponsePacket(pingRequestPacket.number()));
                 }
                 case ClientLoginStartPacket startPacket -> {
-                    nameRef.set(startPacket.username());
-                    uuidRef.set(UUID.randomUUID());
+                    this.playerInfo = new PlayerInfo(this, startPacket.username(), startPacket.profileId());
                     this.networkContext.write(new LoginSuccessPacket(startPacket.profileId(), startPacket.username(), 0, false));
                 }
                 case ClientLoginAcknowledgedPacket ignored -> {

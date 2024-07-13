@@ -69,7 +69,6 @@ import java.util.*;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 
 import static net.minestom.scratch.network.ScratchNetworkTools.NetworkContext;
@@ -229,17 +228,6 @@ public final class SurvivalTemplate {
                 }
             }
             for (Instance world : worlds) {
-                // Compute world broadcast packets
-                try (Broadcaster.Collector collector = world.broadcaster.collector()) {
-                    final List<ServerPacket.Play> packets = collector.packets();
-                    if (!packets.isEmpty()) {
-                        for (Player player : players.values()) {
-                            if (player.instance != world) continue;
-                            final int[] exception = collector.exception(player.id);
-                            player.connection.networkContext.write(new NetworkContext.Packet.PlayList(packets, exception));
-                        }
-                    }
-                }
                 // Compute view packets
                 world.synchronizer.computePackets((playerId, packet) -> {
                     final Player player = players.get(playerId);
@@ -276,8 +264,7 @@ public final class SurvivalTemplate {
         final SpscUnboundedArrayQueue<ClientPacket> packetQueue = new SpscUnboundedArrayQueue<>(2500);
         volatile boolean online = true;
 
-        final AtomicReference<String> nameRef = new AtomicReference<>();
-        final AtomicReference<UUID> uuidRef = new AtomicReference<>();
+        PlayerInfo playerInfo;
 
         Connection(SocketChannel client) {
             this.client = client;
@@ -309,7 +296,7 @@ public final class SurvivalTemplate {
 
         void handleAsyncPacket(ClientPacket packet) {
             if (packet instanceof ClientFinishConfigurationPacket) {
-                waitingPlayers.offer(new PlayerInfo(this, nameRef.get(), uuidRef.get()));
+                waitingPlayers.offer(playerInfo);
                 return;
             }
             if (networkContext.state() == ConnectionState.PLAY) {
@@ -340,8 +327,7 @@ public final class SurvivalTemplate {
                     this.networkContext.write(new PingResponsePacket(pingRequestPacket.number()));
                 }
                 case ClientLoginStartPacket startPacket -> {
-                    nameRef.set(startPacket.username());
-                    uuidRef.set(UUID.randomUUID());
+                    this.playerInfo = new PlayerInfo(this, startPacket.username(), startPacket.profileId());
                     this.networkContext.write(new LoginSuccessPacket(startPacket.profileId(), startPacket.username(), 0, false));
                 }
                 case ClientLoginAcknowledgedPacket ignored -> {
@@ -367,7 +353,6 @@ public final class SurvivalTemplate {
                 Block.CRAFTING_TABLE.id(), new BlockEntityHandler.Entry<>(CraftingTableHandler::new),
                 Block.FURNACE.id(), new BlockEntityHandler.Entry<>(FurnaceHandler::new)
         ));
-        final Broadcaster broadcaster = new Broadcaster();
         final Synchronizer synchronizer = new Synchronizer(VIEW_DISTANCE);
         final WorldBorder worldBorder = new WorldBorder(29999984, 0, 0, 1, 300);
 
@@ -425,7 +410,7 @@ public final class SurvivalTemplate {
 
         @Override
         public void onBreak(Player player) {
-            for (var p : craftingPlayers.keySet()) {
+            for (Player p : craftingPlayers.keySet()) {
                 dropContent(p, point);
             }
         }
@@ -448,7 +433,7 @@ public final class SurvivalTemplate {
                 ItemStack item = container.inventory()[i];
                 if (item.isAir()) continue;
                 // Drop item with random velocity
-                ItemEntity itemEntity = new ItemEntity(player.instance, Pos.fromPoint(point).add(0.5, 1, 0.5), item);
+                ItemEntity itemEntity = new ItemEntity(instance, Pos.fromPoint(point).add(0.5, 1, 0.5), item);
                 itemEntity.velocity = new Vec(Math.random() * 0.1 - 0.05, 0, Math.random() * 0.1 - 0.05);
                 SurvivalTemplate.this.items.put(itemEntity.id, itemEntity);
             }
@@ -471,7 +456,7 @@ public final class SurvivalTemplate {
                 ItemStack item = container.inventory()[i];
                 if (item.isAir()) continue;
                 // Drop item with random velocity
-                ItemEntity itemEntity = new ItemEntity(player.instance, Pos.fromPoint(point).add(0.5, 1, 0.5), item);
+                ItemEntity itemEntity = new ItemEntity(instance, Pos.fromPoint(point).add(0.5, 1, 0.5), item);
                 itemEntity.velocity = new Vec(Math.random() * 0.1 - 0.05, 0, Math.random() * 0.1 - 0.05);
                 SurvivalTemplate.this.items.put(itemEntity.id, itemEntity);
             }
@@ -1027,7 +1012,6 @@ public final class SurvivalTemplate {
                     }
                     case BlockInteractionHandler.Action.InteractBlock interactBlock -> {
                         final Point point = interactBlock.blockPosition();
-                        final Block block = instance.blockHolder.getBlock(point);
                         instance.blockEntityHandler.interact(this, point);
                     }
                 }
